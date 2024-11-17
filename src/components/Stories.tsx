@@ -17,7 +17,7 @@ interface Story {
 
 const ITEMS_PER_PAGE = 3
 
-export default function Stories() {
+export function Stories() {
   const [currentPage, setCurrentPage] = useState(1)
   const [activeTab, setActiveTab] = useState<'latest' | 'featured'>('latest')
 
@@ -26,7 +26,7 @@ export default function Stories() {
       id: 1,
       title: "Injured Sea Turtle's Miraculous Recovery",
       date: "2024-11-17",
-      summary: "A heartwarming story of community effort saving a critically injured sea turtle...",
+      summary: "A heartwarming story of community effort saving a critically injured sea turtle through blockchain-enabled veterinary care coordination.",
       imageUrl: "/api/placeholder/400/200",
       tags: ['Success', 'Marine Life'],
       category: 'featured'
@@ -35,12 +35,47 @@ export default function Stories() {
       id: 2,
       title: "Local Shelter Achieves 100% Adoption Rate",
       date: "2024-11-16",
-      summary: "Community support leads to unprecedented adoption success...",
+      summary: "Community support and transparent blockchain tracking leads to unprecedented adoption success at downtown shelter.",
       imageUrl: "/api/placeholder/400/200",
       tags: ['Success', 'Community'],
       category: 'latest'
     },
-    // Add more stories...
+    {
+      id: 3,
+      title: "Wildlife Preservation Initiative Launch",
+      date: "2024-11-15",
+      summary: "New blockchain-based initiative connects global wildlife preserves for better resource sharing and animal care.",
+      imageUrl: "/api/placeholder/400/200",
+      tags: ['Initiative', 'Wildlife'],
+      category: 'latest'
+    },
+    {
+      id: 4,
+      title: "Rescue Network Expansion",
+      date: "2024-11-14",
+      summary: "Decentralized animal rescue network reaches milestone of 500 connected organizations worldwide.",
+      imageUrl: "/api/placeholder/400/200",
+      tags: ['Network', 'Milestone'],
+      category: 'featured'
+    },
+    {
+      id: 5,
+      title: "Community Veterinary Program Success",
+      date: "2024-11-13",
+      summary: "Blockchain-enabled veterinary care program provides treatment to over 1000 animals in underserved areas.",
+      imageUrl: "/api/placeholder/400/200",
+      tags: ['Healthcare', 'Community'],
+      category: 'latest'
+    },
+    {
+      id: 6,
+      title: "Smart Contract Donation Milestone",
+      date: "2024-11-12",
+      summary: "Transparent donation tracking system reaches $1M in verified animal welfare contributions.",
+      imageUrl: "/api/placeholder/400/200",
+      tags: ['Donation', 'Milestone'],
+      category: 'featured'
+    }
   ]
 
   const filteredStories = stories.filter(story => story.category === activeTab)

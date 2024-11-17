@@ -122,3 +122,12 @@ export function Scale(props: Omit<AnimationProps, 'variant'>) {
 export function Rotate(props: Omit<AnimationProps, 'variant'>) {
   return <Animation variant="rotate" {...props} />
 }
+
+// Additional helper components
+export function SlideLeft(props: Omit<AnimationProps, 'variant'>) {
+  return <Animation variant="slideLeft" {...props} />
+}
+
+export function SlideRight(props: Omit<AnimationProps, 'variant'>) {
+  return <Animation variant="slideRight" {...props} />
+}
