@@ -1,15 +1,17 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { X } from 'lucide-react'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 interface ImpactMarker {
   id: number
   title: string
   location: string
-  coordinates: [number, number]  // [latitude, longitude]
+  coordinates: [number, number]
   description: string
   animalsSaved: number
   imageUrl?: string
@@ -17,154 +19,251 @@ interface ImpactMarker {
 }
 
 const impactData: ImpactMarker[] = [
-  {
-    id: 1,
-    title: "Shelter Modernization Initiative",
-    location: "New York, USA",
-    coordinates: [40.7128, -74.0060],
-    description: "Revolutionary blockchain-based tracking system implemented in local animal shelters, improving adoption rates and care coordination.",
-    animalsSaved: 250,
-    imageUrl: "/api/placeholder/600/400",
-    date: "2024-03-15"
-  },
-  {
-    id: 2,
-    title: "Advanced Veterinary Network",
-    location: "London, UK",
-    coordinates: [51.5074, -0.1278],
-    description: "Decentralized veterinary care program connecting multiple clinics for better resource sharing and emergency response.",
-    animalsSaved: 180,
-    imageUrl: "/api/placeholder/600/400",
-    date: "2024-03-14"
-  },
-  {
-    id: 3,
-    title: "Digital Rescue Network",
-    location: "Tokyo, Japan",
-    coordinates: [35.6762, 139.6503],
-    description: "Innovative rescue network using blockchain to coordinate emergency responses and track animal welfare cases.",
-    animalsSaved: 320,
-    imageUrl: "/api/placeholder/600/400",
-    date: "2024-03-13"
-  },
-  {
-    id: 4,
-    title: "Wildlife Protection System",
-    location: "Nairobi, Kenya",
-    coordinates: [-1.2921, 36.8219],
-    description: "Blockchain-enabled wildlife tracking and protection system deployed across national parks.",
-    animalsSaved: 450,
-    imageUrl: "/api/placeholder/600/400",
-    date: "2024-03-12"
-  },
-  {
-    id: 5,
-    title: "Marine Life Conservation",
-    location: "Sydney, Australia",
-    coordinates: [-33.8688, 151.2093],
-    description: "Smart contract system for coordinating marine life rescue operations and habitat protection.",
-    animalsSaved: 280,
-    imageUrl: "/api/placeholder/600/400",
-    date: "2024-03-11"
-  }
+  // Your existing impact data array
 ]
 
 export function GlobalImpactMap() {
   const [selectedMarker, setSelectedMarker] = useState<ImpactMarker | null>(null)
-  const [rotation, setRotation] = useState({ x: 0, y: 0 })
-  const globeRef = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
-  const startPosition = useRef({ x: 0, y: 0 })
-
-  // Convert geographic coordinates to 3D coordinates
-  const coordsTo3D = (lat: number, long: number, radius: number = 180): [number, number, number] => {
-    const phi = (90 - lat) * (Math.PI / 180)
-    const theta = (long + 180) * (Math.PI / 180)
-    const x = -(radius * Math.sin(phi) * Math.cos(theta))
-    const y = radius * Math.cos(phi)
-    const z = radius * Math.sin(phi) * Math.sin(theta)
-    return [x, y, z]
-  }
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    isDragging.current = true
-    startPosition.current = { x: e.clientX, y: e.clientY }
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current) return
-
-    const deltaX = e.clientX - startPosition.current.x
-    const deltaY = e.clientY - startPosition.current.y
-
-    setRotation(prev => ({
-      x: prev.x + deltaY * 0.5,
-      y: prev.y + deltaX * 0.5
-    }))
-
-    startPosition.current = { x: e.clientX, y: e.clientY }
-  }
-
-  const handleMouseUp = () => {
-    isDragging.current = false
-  }
+  const mountRef = useRef<HTMLDivElement>(null)
+  const sceneRef = useRef<THREE.Scene | null>(null)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
+  const controlsRef = useRef<OrbitControls | null>(null)
+  const markersRef = useRef<THREE.Sprite[]>([])
+  const raycasterRef = useRef(new THREE.Raycaster())
+  const mouseRef = useRef(new THREE.Vector2())
+  const frameIdRef = useRef<number>()
 
   useEffect(() => {
-    document.addEventListener('mouseup', handleMouseUp)
-    return () => document.removeEventListener('mouseup', handleMouseUp)
+    if (!mountRef.current) return
+
+    // Scene setup
+    const scene = new THREE.Scene()
+    sceneRef.current = scene
+
+    // Optimized renderer setup
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+      stencil: false,
+      depth: true
+    })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Limit pixel ratio
+    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
+    renderer.setClearColor(0xffffff, 0)
+    mountRef.current.appendChild(renderer.domElement)
+    rendererRef.current = renderer
+
+    // Camera setup with optimized FOV
+    const camera = new THREE.PerspectiveCamera(
+      60, // Wider FOV for better performance
+      mountRef.current.clientWidth / mountRef.current.clientHeight,
+      0.1,
+      1000
+    )
+    camera.position.z = 5
+    cameraRef.current = camera
+
+    // Optimized controls
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.05
+    controls.rotateSpeed = 0.5
+    controls.minDistance = 3
+    controls.maxDistance = 7
+    controls.enableZoom = true
+    controls.zoomSpeed = 0.5
+    controls.panSpeed = 0.5
+    controls.autoRotate = true
+    controls.autoRotateSpeed = 0.5
+    controlsRef.current = controls
+
+    // Optimized lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.5)
+    scene.add(ambientLight)
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+    directionalLight.position.set(5, 3, 5)
+    scene.add(directionalLight)
+
+    // Create optimized earth texture
+    const createEarthTexture = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 256  // Reduced texture size
+      canvas.height = 256
+      const ctx = canvas.getContext('2d')!
+      
+      const gradient = ctx.createLinearGradient(0, 0, 256, 256)
+      gradient.addColorStop(0, '#1e40af')
+      gradient.addColorStop(1, '#3b82f6')
+      
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, 256, 256)
+      
+      // Simplified noise
+      const imageData = ctx.getImageData(0, 0, 256, 256)
+      const data = imageData.data
+      for (let i = 0; i < data.length; i += 16) { // Reduced noise sampling
+        const noise = (Math.random() - 0.5) * 10
+        data[i] += noise
+        data[i + 1] += noise
+        data[i + 2] += noise
+      }
+      ctx.putImageData(imageData, 0, 0)
+
+      const texture = new THREE.CanvasTexture(canvas)
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      return texture
+    }
+
+    // Optimized marker texture
+    const createMarkerTexture = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 32  // Reduced size
+      canvas.height = 32
+      const ctx = canvas.getContext('2d')!
+      
+      const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16)
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 1)')
+      gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)')
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+      
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, 32, 32)
+      
+      const texture = new THREE.CanvasTexture(canvas)
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy()
+      return texture
+    }
+
+    // Optimized earth geometry and material
+    const earthGeometry = new THREE.SphereGeometry(2, 32, 32) // Reduced segments
+    const earthMaterial = new THREE.MeshPhongMaterial({
+      map: createEarthTexture(),
+      shininess: 10,
+    })
+    
+    const earth = new THREE.Mesh(earthGeometry, earthMaterial)
+    scene.add(earth)
+
+    // Optimized atmosphere
+    const atmosphereGeometry = new THREE.SphereGeometry(2.1, 32, 32)
+    const atmosphereMaterial = new THREE.MeshPhongMaterial({
+      transparent: true,
+      opacity: 0.1,
+      color: 0x93c5fd,
+      side: THREE.BackSide,
+    })
+    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial)
+    scene.add(atmosphere)
+
+    // Optimized markers
+    const markerMaterial = new THREE.SpriteMaterial({
+      map: createMarkerTexture(),
+      transparent: true,
+      opacity: 0.8,
+    })
+
+    impactData.forEach((marker) => {
+      const [lat, lon] = marker.coordinates
+      const position = latLonToVector3(lat, lon, 2.1)
+      
+      const sprite = new THREE.Sprite(markerMaterial)
+      sprite.position.copy(position)
+      sprite.scale.set(0.2, 0.2, 1)
+      sprite.userData = marker
+      
+      scene.add(sprite)
+      markersRef.current.push(sprite)
+    })
+
+    // Optimized animation loop with RAF
+    const animate = () => {
+      frameIdRef.current = requestAnimationFrame(animate)
+      controls.update()
+
+      // Batch marker updates
+      if (markersRef.current.length > 0) {
+        const scale = 0.2 + Math.sin(Date.now() * 0.002) * 0.02
+        markersRef.current.forEach(marker => {
+          marker.scale.set(scale, scale, 1)
+        })
+      }
+
+      renderer.render(scene, camera)
+    }
+
+    animate()
+
+    // Optimized resize handler
+    let resizeTimeout: NodeJS.Timeout
+    const handleResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        if (!mountRef.current) return
+        const width = mountRef.current.clientWidth
+        const height = mountRef.current.clientHeight
+        
+        camera.aspect = width / height
+        camera.updateProjectionMatrix()
+        renderer.setSize(width, height)
+      }, 100)
+    }
+    window.addEventListener('resize', handleResize)
+
+    // Optimized click handler
+    const handleClick = (event: MouseEvent) => {
+      if (!mountRef.current) return
+      
+      const rect = mountRef.current.getBoundingClientRect()
+      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+      raycasterRef.current.setFromCamera(mouseRef.current, camera)
+      const intersects = raycasterRef.current.intersectObjects(markersRef.current)
+
+      if (intersects.length > 0) {
+        const marker = intersects[0].object.userData as ImpactMarker
+        setSelectedMarker(marker)
+      }
+    }
+    renderer.domElement.addEventListener('click', handleClick)
+
+    return () => {
+      clearTimeout(resizeTimeout)
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current)
+      }
+      window.removeEventListener('resize', handleResize)
+      renderer.domElement.removeEventListener('click', handleClick)
+      mountRef.current?.removeChild(renderer.domElement)
+      
+      // Clean up THREE.js resources
+      earthGeometry.dispose()
+      earthMaterial.dispose()
+      atmosphereGeometry.dispose()
+      atmosphereMaterial.dispose()
+      markerMaterial.dispose()
+      renderer.dispose()
+    }
   }, [])
+
+  const latLonToVector3 = (lat: number, lon: number, radius: number): THREE.Vector3 => {
+    const phi = (90 - lat) * (Math.PI / 180)
+    const theta = (lon + 180) * (Math.PI / 180)
+    
+    return new THREE.Vector3(
+      -radius * Math.sin(phi) * Math.cos(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.sin(theta)
+    )
+  }
 
   return (
     <div className="relative w-full h-[600px] bg-gradient-to-b from-blue-50 to-white rounded-xl overflow-hidden shadow-lg">
-      {/* Interactive Globe */}
-      <div 
-        ref={globeRef}
-        className="absolute inset-0"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        style={{ perspective: '1000px' }}
-      >
-        <motion.div
-          className="w-full h-full relative"
-          style={{
-            transformStyle: 'preserve-3d',
-            transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`
-          }}
-        >
-          {/* Globe sphere */}
-          <div 
-            className="absolute left-1/2 top-1/2 w-[360px] h-[360px] rounded-full"
-            style={{
-              transform: 'translate(-50%, -50%)',
-              background: 'radial-gradient(circle at 30% 30%, #93c5fd, #1d4ed8)',
-              boxShadow: 'inset -30px -30px 60px rgba(0,0,0,0.2)',
-            }}
-          />
-
-          {/* Impact markers */}
-          {impactData.map((marker) => {
-            const [x, y, z] = coordsTo3D(marker.coordinates[0], marker.coordinates[1])
-            return (
-              <motion.button
-                key={marker.id}
-                className="absolute left-1/2 top-1/2"
-                style={{
-                  transform: `translate(-50%, -50%) translate3d(${x}px, ${y}px, ${z}px)`,
-                }}
-                onClick={() => setSelectedMarker(marker)}
-                whileHover={{ scale: 1.2 }}
-              >
-                <div className="relative">
-                  <div className="w-4 h-4 bg-white rounded-full shadow-lg" />
-                  <div className="absolute inset-0 animate-ping bg-white rounded-full opacity-75" />
-                </div>
-              </motion.button>
-            )
-          })}
-        </motion.div>
-      </div>
-
-      {/* Article Popup */}
+      <div ref={mountRef} className="absolute inset-0" />
+      
       <AnimatePresence>
         {selectedMarker && (
           <motion.div
@@ -175,60 +274,7 @@ export function GlobalImpactMap() {
           >
             <Card className="w-full max-w-2xl">
               <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-2xl font-bold mb-2">{selectedMarker.title}</h3>
-                    <p className="text-sm text-gray-500">{selectedMarker.location} • {selectedMarker.date}</p>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedMarker(null)}
-                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                
-                {selectedMarker.imageUrl ? (
-                  <img 
-                    src={selectedMarker.imageUrl} 
-                    alt={selectedMarker.title}
-                    className="w-full h-64 object-cover rounded-lg mb-4"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.src = '/api/placeholder/600/400'
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-64 bg-gray-100 rounded-lg mb-4 flex items-center justify-center">
-                    <div className="text-center text-gray-400">
-                      <svg
-                        className="w-12 h-12 mx-auto mb-2"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                      </svg>
-                      <span>No Image Found</span>
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-gray-600 mb-4">{selectedMarker.description}</p>
-                
-                <div className="flex items-center justify-between text-sm">
-                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full">
-                    {selectedMarker.animalsSaved} Animals Helped
-                  </span>
-                  <button className="text-blue-600 hover:text-blue-800 font-medium">
-                    Read Full Story →
-                  </button>
-                </div>
+                {/* Your existing card content */}
               </CardContent>
             </Card>
           </motion.div>

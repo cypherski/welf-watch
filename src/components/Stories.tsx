@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { ChevronLeft, ChevronRight, Share2, Twitter } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Share2, Twitter, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import axios from 'axios'
 
 interface Story {
   id: number
@@ -15,106 +16,163 @@ interface Story {
   category: 'latest' | 'featured'
 }
 
-const ITEMS_PER_PAGE = 3
+const ITEMS_PER_PAGE = 10
+
+// Fallback data
+const fallbackStories: Story[] = [
+  {
+    id: 1,
+    title: "Injured Sea Turtle's Miraculous Recovery",
+    date: "2024-11-17",
+    summary: "A heartwarming story of community effort saving a critically injured sea turtle through blockchain-enabled veterinary care coordination.",
+    imageUrl: "/api/placeholder/400/200",
+    tags: ['Success', 'Marine Life'],
+    category: 'latest'
+  },
+  {
+    id: 2,
+    title: "Wildlife Protection Initiative Launch",
+    date: "2024-11-16",
+    summary: "New blockchain-based tracking system implemented to protect endangered species in national parks.",
+    imageUrl: "/api/placeholder/400/200",
+    tags: ['Initiative', 'Wildlife'],
+    category: 'featured'
+  },
+  // Add more fallback stories as needed
+]
+
+function PlaceholderImage() {
+  return (
+    <div className="w-48 h-32 bg-gradient-to-br from-gray-50 to-gray-100 rounded flex flex-col items-center justify-center border border-gray-200">
+      <div className="relative">
+        <Search className="w-8 h-8 text-gray-400" strokeWidth={1.5} />
+        <div className="absolute -right-1 -bottom-1">
+          <div className="relative">
+            <div className="absolute inset-0 animate-ping">
+              <div className="w-2 h-2 bg-blue-400 rounded-full opacity-25"></div>
+            </div>
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-gray-500 text-xs font-medium">No Image Found</p>
+    </div>
+  )
+}
 
 export function Stories() {
   const [currentPage, setCurrentPage] = useState(1)
   const [activeTab, setActiveTab] = useState<'latest' | 'featured'>('latest')
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
+  const [stories, setStories] = useState<Story[]>(fallbackStories)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const stories: Story[] = [
-    {
-      id: 1,
-      title: "Injured Sea Turtle's Miraculous Recovery",
-      date: "2024-11-17",
-      summary: "A heartwarming story of community effort saving a critically injured sea turtle through blockchain-enabled veterinary care coordination.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Success', 'Marine Life'],
-      category: 'featured'
-    },
-    {
-      id: 2,
-      title: "Local Shelter Achieves 100% Adoption Rate",
-      date: "2024-11-16",
-      summary: "Community support and transparent blockchain tracking leads to unprecedented adoption success at downtown shelter.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Success', 'Community'],
-      category: 'latest'
-    },
-    {
-      id: 3,
-      title: "Wildlife Preservation Initiative Launch",
-      date: "2024-11-15",
-      summary: "New blockchain-based initiative connects global wildlife preserves for better resource sharing and animal care.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Initiative', 'Wildlife'],
-      category: 'latest'
-    },
-    {
-      id: 4,
-      title: "Rescue Network Expansion",
-      date: "2024-11-14",
-      summary: "Decentralized animal rescue network reaches milestone of 500 connected organizations worldwide.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Network', 'Milestone'],
-      category: 'featured'
-    },
-    {
-      id: 5,
-      title: "Community Veterinary Program Success",
-      date: "2024-11-13",
-      summary: "Blockchain-enabled veterinary care program provides treatment to over 1000 animals in underserved areas.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Healthcare', 'Community'],
-      category: 'latest'
-    },
-    {
-      id: 6,
-      title: "Smart Contract Donation Milestone",
-      date: "2024-11-12",
-      summary: "Transparent donation tracking system reaches $1M in verified animal welfare contributions.",
-      imageUrl: "/api/placeholder/400/200",
-      tags: ['Donation', 'Milestone'],
-      category: 'featured'
+  useEffect(() => {
+    const fetchStories = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch('/api/stories?' + new URLSearchParams({
+          category: activeTab,
+          page: currentPage.toString(),
+          limit: ITEMS_PER_PAGE.toString()
+        }))
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch stories')
+        }
+
+        const data = await response.json()
+        
+        // Validate the response data
+        if (Array.isArray(data.data)) {
+          setStories(data.data)
+        } else {
+          console.error('Invalid data format received:', data)
+          setStories(fallbackStories)
+        }
+      } catch (err) {
+        console.error('Error fetching stories:', err)
+        setError('Failed to fetch stories. Using fallback data.')
+        setStories(fallbackStories)
+      } finally {
+        setLoading(false)
+      }
     }
-  ]
 
-  const filteredStories = stories.filter(story => story.category === activeTab)
-  const totalPages = Math.ceil(filteredStories.length / ITEMS_PER_PAGE)
+    fetchStories()
+  }, [activeTab, currentPage])
+
+  const handleImageError = (storyId: number) => {
+    setImageErrors(prev => ({
+      ...prev,
+      [storyId]: true
+    }))
+  }
+
+  // Safely filter stories
+  const filteredStories = Array.isArray(stories) 
+    ? stories.filter(story => story?.category === activeTab)
+    : []
+
+  const totalPages = Math.max(1, Math.ceil(filteredStories.length / ITEMS_PER_PAGE))
   const currentStories = filteredStories.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   )
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="w-full max-w-7xl mx-auto px-4">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
+      {error && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+          <p className="text-yellow-700">{error}</p>
+        </div>
+      )}
+
       {/* Tab Navigation */}
       <div className="flex justify-center space-x-4 mb-8">
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => {
             setActiveTab('latest')
             setCurrentPage(1)
           }}
           className={`px-6 py-2 rounded-full transition-all ${
             activeTab === 'latest'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-blue-600 text-white shadow-md'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
           Latest Stories
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => {
             setActiveTab('featured')
             setCurrentPage(1)
           }}
           className={`px-6 py-2 rounded-full transition-all ${
             activeTab === 'featured'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-blue-600 text-white shadow-md'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
           Featured Cases
-        </button>
+        </motion.button>
       </div>
 
       {/* Stories Grid */}
@@ -126,113 +184,201 @@ export function Stories() {
           exit={{ opacity: 0, y: -20 }}
           className="grid gap-6"
         >
-          {currentStories.map((story, index) => (
-            <motion.div
-              key={story.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="hover:shadow-lg transition-shadow duration-300">
-                <CardContent className="p-6">
-                  <div className="flex gap-6">
-                    {story.imageUrl ? (
-                      <img
-                        src={story.imageUrl}
-                        alt={story.title}
-                        className="w-48 h-32 object-cover rounded"
-                      />
-                    ) : (
-                      <MagnifyingGlass />
-                    )}
-                    <div className="flex-1">
-                      <div className="flex gap-2 mb-2">
-                        {story.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      <h3 className="text-xl font-semibold mb-2">{story.title}</h3>
-                      <p className="text-gray-600 mb-4">{story.summary}</p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-500">{story.date}</span>
-                        <div className="flex gap-2">
-                          <button className="text-blue-600 hover:text-blue-700">
-                            <Twitter size={20} />
-                          </button>
-                          <button className="text-blue-600 hover:text-blue-700">
-                            <Share2 size={20} />
-                          </button>
+          {currentStories.length > 0 ? (
+            currentStories.map((story, index) => (
+              <motion.div
+                key={story.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="hover:shadow-lg transition-shadow duration-300 group">
+                  <CardContent className="p-6">
+                    <div className="flex gap-6">
+                      {story.imageUrl && !imageErrors[story.id] ? (
+                        <motion.img
+                          src={story.imageUrl}
+                          alt={story.title}
+                          className="w-48 h-32 object-cover rounded"
+                          onError={() => handleImageError(story.id)}
+                          layoutId={`image-${story.id}`}
+                        />
+                      ) : (
+                        <PlaceholderImage />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex gap-2 mb-2">
+                          {story.tags.map(tag => (
+                            <motion.span
+                              key={tag}
+                              whileHover={{ scale: 1.05 }}
+                              className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded"
+                            >
+                              {tag}
+                            </motion.span>
+                          ))}
+                        </div>
+                        <h3 className="text-xl font-semibold mb-2 group-hover:text-blue-600 transition-colors">
+                          {story.title}
+                        </h3>
+                        <p className="text-gray-600 mb-4">{story.summary}</p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-500">{story.date}</span>
+                          <div className="flex gap-2">
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Twitter size={20} />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Share2 size={20} />
+                            </motion.button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No stories found in this category.
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
 
       {/* Pagination */}
-      <div className="flex justify-between items-center mt-8">
-        <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-50"
-        >
-          <ChevronLeft size={24} />
-        </button>
-        <div className="flex space-x-2">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i + 1}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`w-10 h-10 rounded-full ${
-                currentPage === i + 1
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-50"
-        >
-          <ChevronRight size={24} />
-        </button>
-      </div>
-    </div>
-  )
-}
+      {totalPages > 1 && (
+        <div className="mt-8">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="flex items-center space-x-2">
+              {/* Previous Button */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={24} />
+              </motion.button>
 
-function MagnifyingGlass() {
-  return (
-    <div className="w-48 h-32 bg-gray-100 rounded flex items-center justify-center">
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="text-gray-400"
-      >
-        <path
-          d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+              {/* Page Numbers */}
+              {(() => {
+                const pages = []
+                const maxVisible = 10 // Show 10 page buttons
+                let startPage = 1
+                
+                if (currentPage > 6) {
+                  startPage = Math.min(currentPage - 5, totalPages - 9)
+                }
+
+                const endPage = Math.min(startPage + 9, totalPages)
+
+                // First page if we're showing later pages
+                if (startPage > 1) {
+                  pages.push(
+                    <motion.button
+                      key={1}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setCurrentPage(1)}
+                      className={`w-10 h-10 rounded-full font-medium transition-colors ${
+                        currentPage === 1
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      1
+                    </motion.button>
+                  )
+                  
+                  if (startPage > 2) {
+                    pages.push(
+                      <span key="dots-1" className="w-10 h-10 flex items-center justify-center">
+                        ...
+                      </span>
+                    )
+                  }
+                }
+
+                // Page numbers
+                for (let i = startPage; i <= endPage; i++) {
+                  pages.push(
+                    <motion.button
+                      key={i}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setCurrentPage(i)}
+                      className={`w-10 h-10 rounded-full font-medium transition-colors ${
+                        currentPage === i
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {i}
+                    </motion.button>
+                  )
+                }
+
+                // Last page if there are more pages
+                if (endPage < totalPages) {
+                  if (endPage < totalPages - 1) {
+                    pages.push(
+                      <span key="dots-2" className="w-10 h-10 flex items-center justify-center">
+                        ...
+                      </span>
+                    )
+                  }
+                  pages.push(
+                    <motion.button
+                      key={totalPages}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setCurrentPage(totalPages)}
+                      className={`w-10 h-10 rounded-full font-medium transition-colors ${
+                        currentPage === totalPages
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {totalPages}
+                    </motion.button>
+                  )
+                }
+
+                return pages
+              })()}
+
+              {/* Next Button */}
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="flex items-center justify-center w-10 h-10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                aria-label="Next page"
+              >
+                <ChevronRight size={24} />
+              </motion.button>
+            </div>
+            
+            {/* Page Counter */}
+            <div className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
